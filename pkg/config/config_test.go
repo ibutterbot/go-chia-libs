@@ -180,6 +180,84 @@ func TestNFTAutoAddLimitPointer(t *testing.T) {
 	})
 }
 
+func TestMaxCoinStateUpdateItemsPointer(t *testing.T) {
+	t.Run("default config loads value", func(t *testing.T) {
+		cfg, err := config.LoadDefaultConfig()
+		require.NoError(t, err)
+		require.NotNil(t, cfg.Wallet.MaxCoinStateUpdateItems)
+		assert.Equal(t, uint32(100000), *cfg.Wallet.MaxCoinStateUpdateItems)
+	})
+
+	t.Run("marshal omits nil, includes zero and non-zero", func(t *testing.T) {
+		wallet := config.WalletConfig{}
+
+		out, err := yaml.Marshal(wallet)
+		require.NoError(t, err)
+		assert.NotContains(t, string(out), "max_coin_state_update_items")
+
+		wallet.MaxCoinStateUpdateItems = ptr.Pointer(uint32(0))
+		out, err = yaml.Marshal(wallet)
+		require.NoError(t, err)
+		assert.Contains(t, string(out), "max_coin_state_update_items: 0")
+
+		wallet.MaxCoinStateUpdateItems = ptr.Pointer(uint32(100000))
+		out, err = yaml.Marshal(wallet)
+		require.NoError(t, err)
+		assert.Contains(t, string(out), "max_coin_state_update_items: 100000")
+	})
+
+	t.Run("unmarshal absent yields nil and is omitted on remarshal", func(t *testing.T) {
+		var wallet config.WalletConfig
+		require.NoError(t, yaml.Unmarshal([]byte(`db_sync: auto`), &wallet))
+		assert.Nil(t, wallet.MaxCoinStateUpdateItems)
+
+		out, err := yaml.Marshal(wallet)
+		require.NoError(t, err)
+		assert.NotContains(t, string(out), "max_coin_state_update_items")
+	})
+
+	t.Run("unmarshal present retains value on remarshal", func(t *testing.T) {
+		var wallet config.WalletConfig
+		require.NoError(t, yaml.Unmarshal([]byte(`max_coin_state_update_items: 50000`), &wallet))
+		require.NotNil(t, wallet.MaxCoinStateUpdateItems)
+		assert.Equal(t, uint32(50000), *wallet.MaxCoinStateUpdateItems)
+
+		out, err := yaml.Marshal(wallet)
+		require.NoError(t, err)
+		assert.Contains(t, string(out), "max_coin_state_update_items: 50000")
+	})
+}
+
+func TestLoggingLogSystemd(t *testing.T) {
+	t.Run("default config has log_systemd false", func(t *testing.T) {
+		cfg, err := config.LoadDefaultConfig()
+		require.NoError(t, err)
+		require.NotNil(t, cfg.Logging)
+		assert.False(t, cfg.Logging.LogSystemd)
+
+		out, err := cfg.SaveBytes()
+		require.NoError(t, err)
+		assert.Contains(t, string(out), "log_systemd: false")
+	})
+
+	t.Run("unmarshal true retains value on remarshal", func(t *testing.T) {
+		var logging config.LoggingConfig
+		require.NoError(t, yaml.Unmarshal([]byte(`log_systemd: true`), &logging))
+		assert.True(t, logging.LogSystemd)
+
+		out, err := yaml.Marshal(logging)
+		require.NoError(t, err)
+		assert.Contains(t, string(out), "log_systemd: true")
+	})
+
+	t.Run("CopyWithoutAnchor preserves log_systemd", func(t *testing.T) {
+		logging := &config.LoggingConfig{LogSystemd: true}
+		copied := logging.CopyWithoutAnchor()
+		assert.True(t, copied.LogSystemd)
+		assert.True(t, copied.NoAnchor())
+	})
+}
+
 func TestBlockCreationPointer(t *testing.T) {
 	t.Run("default config has nil BlockCreation", func(t *testing.T) {
 		cfg, err := config.LoadDefaultConfig()
